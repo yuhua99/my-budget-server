@@ -1,5 +1,7 @@
 use axum::{Router, routing::get};
 
+mod models;
+
 #[tokio::main]
 async fn main() {
     let app = Router::new().route("/", get(root));

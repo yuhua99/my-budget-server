@@ -5,7 +5,7 @@ A personal expense tracking backend server built with Rust and Axum, designed to
 ## 🚀 Features
 
 - **User Authentication**: Secure registration and login with session-based authentication
-- **Personal Data Isolation**: Each user gets their own SQLite database for complete data privacy
+- **Personal Data Isolation**: Each user gets their own Turso database for complete data privacy
 - **Expense Management**: Full CRUD operations for expense records with categorization
 - **Smart Predictions**: Automatic expense name suggestions based on similar past records
 - **Category Management**: Flexible expense categorization system
