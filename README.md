@@ -37,4 +37,16 @@ my-budget-server/
     └── models.rs                # Data structures & models
 ```
 
+The server will start on `http://localhost:3000` by default.
+
+## 🔧 Configuration
+
+Create a `.env` file in the project root:
+
+```env
+SERVER_HOST=0.0.0.0
+SERVER_PORT=3000
+DATABASE_PATH=./data
+
 **Built with ❤️ for personal budget management**
+```
