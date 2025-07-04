@@ -111,3 +111,26 @@ pub async fn login(
         }),
     ))
 }
+
+pub async fn get_current_user(session: &Session) -> Result<PublicUser, (StatusCode, String)> {
+    let user_id: Option<i32> = session
+        .get("user_id")
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let username: Option<String> = session
+        .get("username")
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    match (user_id, username) {
+        (Some(id), Some(name)) => Ok(PublicUser { id, username: name }),
+        _ => Err((StatusCode::UNAUTHORIZED, "Not logged in".to_string())),
+    }
+}
+
+pub async fn logout(session: Session) -> Result<StatusCode, (StatusCode, String)> {
+    session.clear().await;
+
+    Ok(StatusCode::NO_CONTENT)
+}

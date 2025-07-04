@@ -40,6 +40,7 @@ async fn main() {
         .route("/", get(root))
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
+        .route("/auth/logout", post(auth::logout))
         .layer(session_layer)
         .with_state(main_db);
 
