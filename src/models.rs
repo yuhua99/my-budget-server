@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
-    pub id: i64,
+    pub id: i32,
     pub username: String,
     #[serde(skip_serializing)]
     pub password_hash: String,
@@ -18,4 +18,10 @@ pub struct RegisterPayload {
 pub struct PublicUser {
     pub id: i32,
     pub username: String,
+}
+
+#[derive(Deserialize)]
+pub struct LoginPayload {
+    pub username: String,
+    pub password: String,
 }

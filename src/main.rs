@@ -27,6 +27,7 @@ async fn main() {
 
     let store = MemoryStore::default();
 
+    // TODO: show detail error message if secret is invalid
     let secret = env::var("SESSION_SECRET")
         .unwrap_or_else(|_| "a_super_secret_and_long_key_that_is_at_least_64_bytes_long".into());
     let session_layer = SessionManagerLayer::new(store)
@@ -38,6 +39,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(root))
         .route("/auth/register", post(auth::register))
+        .route("/auth/login", post(auth::login))
         .layer(session_layer)
         .with_state(main_db);
 
