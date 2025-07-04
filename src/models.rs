@@ -7,3 +7,15 @@ pub struct User {
     #[serde(skip_serializing)]
     pub password_hash: String,
 }
+
+#[derive(Deserialize)]
+pub struct RegisterPayload {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Serialize)]
+pub struct PublicUser {
+    pub id: i32,
+    pub username: String,
+}

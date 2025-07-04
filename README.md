@@ -47,6 +47,7 @@ Create a `.env` file in the project root:
 SERVER_HOST=0.0.0.0
 SERVER_PORT=3000
 DATABASE_PATH=./data
+SESSION_SECRET=use openssl rand -hex 64 to generate your secret
 
 **Built with ❤️ for personal budget management**
 ```
