@@ -33,10 +33,29 @@ pub async fn register(
     State(db): State<Db>,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<(StatusCode, Json<PublicUser>), (StatusCode, String)> {
-    // TODO: add error handling for invalid arg and duplicate usernames
+    // Input validation
+    if payload.username.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Username cannot be empty".to_string()));
+    }
+    if payload.username.len() < 3 || payload.username.len() > 50 {
+        return Err((StatusCode::BAD_REQUEST, "Username must be between 3 and 50 characters".to_string()));
+    }
+    if payload.password.len() < 8 {
+        return Err((StatusCode::BAD_REQUEST, "Password must be at least 8 characters long".to_string()));
+    }
+    if !payload.username.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        return Err((StatusCode::BAD_REQUEST, "Username can only contain alphanumeric characters, underscores, and hyphens".to_string()));
+    }
+
     let user = create_user(&db, &payload.username, &payload.password)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| {
+            if e.to_string().contains("UNIQUE constraint failed") {
+                (StatusCode::CONFLICT, "Username already exists".to_string())
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+            }
+        })?;
 
     Ok((StatusCode::CREATED, Json(user)))
 }
@@ -77,6 +96,14 @@ pub async fn login(
     session: Session,
     Json(payload): Json<LoginPayload>,
 ) -> Result<(StatusCode, Json<PublicUser>), (StatusCode, String)> {
+    // Input validation
+    if payload.username.trim().is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Username cannot be empty".to_string()));
+    }
+    if payload.password.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "Password cannot be empty".to_string()));
+    }
+
     let user_data = get_user_by_username(&db, &payload.username)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
