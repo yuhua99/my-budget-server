@@ -11,6 +11,23 @@ CREATE TABLE IF NOT EXISTS users (
 );
 "#;
 
+const CREATE_RECORDS_TABLE: &str = r#"
+CREATE TABLE IF NOT EXISTS records (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL,
+    amount      REAL    NOT NULL,
+    category_id INTEGER NOT NULL,
+    timestamp   INTEGER NOT NULL
+);
+"#;
+
+const CREATE_CATEGORIES_TABLE: &str = r#"
+CREATE TABLE IF NOT EXISTS categories (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT    UNIQUE NOT NULL
+);
+"#;
+
 pub type Db = Arc<RwLock<Connection>>;
 
 /// Main users registry DB (users.db)
@@ -29,5 +46,10 @@ pub async fn get_user_db(data_dir: &str, user_id: i32) -> Result<Db> {
     let path = Path::new(data_dir).join(format!("user_{}.db", user_id));
     let db = Builder::new_local(path).build().await?;
     let conn = db.connect()?;
+
+    // Create tables for user's expense data
+    conn.execute(CREATE_RECORDS_TABLE, ()).await?;
+    conn.execute(CREATE_CATEGORIES_TABLE, ()).await?;
+    
     Ok(Arc::new(RwLock::new(conn)))
 }
