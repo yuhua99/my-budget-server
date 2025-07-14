@@ -32,7 +32,7 @@ async fn main() {
         .unwrap_or_else(|_| "a_super_secret_and_long_key_that_is_at_least_64_bytes_long".into());
     let session_layer = SessionManagerLayer::new(store)
         .with_secure(false)
-        .with_name("axum_sessoin")
+        .with_name("axum_session")
         .with_expiry(Expiry::OnInactivity(Duration::days(3)))
         .with_signed(Key::try_from(secret.as_bytes()).unwrap());
 
