@@ -10,6 +10,7 @@ use tower_sessions::{Expiry, MemoryStore, Session, SessionManagerLayer, cookie::
 mod auth;
 mod database;
 mod models;
+mod records;
 
 #[tokio::main]
 async fn main() {
@@ -42,6 +43,7 @@ async fn main() {
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/logout", post(auth::logout))
+        .route("/records", post(records::create_record))
         .layer(session_layer)
         .with_state(main_db);
 

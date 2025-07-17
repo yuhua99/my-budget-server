@@ -25,3 +25,19 @@ pub struct LoginPayload {
     pub username: String,
     pub password: String,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Record {
+    pub id: String,
+    pub name: String,
+    pub amount: f64,
+    pub category_id: String,
+    pub timestamp: i64,
+}
+
+#[derive(Deserialize)]
+pub struct CreateRecordPayload {
+    pub name: String,
+    pub amount: f64,
+    pub category_id: String,
+}
