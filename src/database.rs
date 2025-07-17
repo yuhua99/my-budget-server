@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 
 const CREATE_USERS_TABLE: &str = r#"
 CREATE TABLE IF NOT EXISTS users (
-    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    id             TEXT    PRIMARY KEY,
     name           TEXT    UNIQUE NOT NULL,
     password_hash  TEXT    NOT NULL
 );
@@ -13,17 +13,17 @@ CREATE TABLE IF NOT EXISTS users (
 
 const CREATE_RECORDS_TABLE: &str = r#"
 CREATE TABLE IF NOT EXISTS records (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          TEXT    PRIMARY KEY,
     name        TEXT    NOT NULL,
     amount      REAL    NOT NULL,
-    category_id INTEGER NOT NULL,
+    category_id TEXT    NOT NULL,
     timestamp   INTEGER NOT NULL
 );
 "#;
 
 const CREATE_CATEGORIES_TABLE: &str = r#"
 CREATE TABLE IF NOT EXISTS categories (
-    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    id   TEXT    PRIMARY KEY,
     name TEXT    UNIQUE NOT NULL
 );
 "#;
@@ -42,7 +42,7 @@ pub async fn init_main_db(data_dir: &str) -> Result<Db> {
 }
 
 /// Per-user isolated DB (user_{id}.db)
-pub async fn get_user_db(data_dir: &str, user_id: i32) -> Result<Db> {
+pub async fn get_user_db(data_dir: &str, user_id: &str) -> Result<Db> {
     let path = Path::new(data_dir).join(format!("user_{}.db", user_id));
     let db = Builder::new_local(path).build().await?;
     let conn = db.connect()?;

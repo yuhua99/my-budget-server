@@ -4,6 +4,7 @@ use argon2::{
 };
 use axum::{Json, extract::State, http::StatusCode};
 use tower_sessions::Session;
+use uuid::Uuid;
 
 use crate::database::Db;
 use crate::models::{LoginPayload, PublicUser, RegisterPayload, User};
@@ -14,15 +15,15 @@ async fn create_user(db: &Db, username: &str, password: &str) -> anyhow::Result<
         .hash_password(password.as_bytes(), &salt)
         .unwrap()
         .to_string();
+    let id = Uuid::new_v4().to_string();
     let conn = db.write().await;
 
     conn.execute(
-        "INSERT INTO users (name, password_hash) VALUES (?, ?)",
-        (username, hash.as_str()),
+        "INSERT INTO users (id, name, password_hash) VALUES (?, ?, ?)",
+        (id.as_str(), username, hash.as_str()),
     )
     .await?;
 
-    let id = conn.last_insert_rowid() as i32;
     Ok(PublicUser {
         id,
         username: username.to_string(),
@@ -70,7 +71,7 @@ async fn get_user_by_username(db: &Db, username: &str) -> anyhow::Result<Option<
         .await?;
 
     if let Some(row) = rows.next().await? {
-        let id: i32 = row.get(0)?;
+        let id: String = row.get(0)?;
         let username: String = row.get(1)?;
         let password_hash: String = row.get(2)?;
         Ok(Some(User {
@@ -140,7 +141,7 @@ pub async fn login(
 }
 
 pub async fn get_current_user(session: &Session) -> Result<PublicUser, (StatusCode, String)> {
-    let user_id: Option<i32> = session
+    let user_id: Option<String> = session
         .get("user_id")
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
