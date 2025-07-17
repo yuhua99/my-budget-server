@@ -26,6 +26,8 @@ async fn main() {
     let bind_address = format!("{}:{}", host, port);
 
     let store = MemoryStore::default();
+    // TODO: Consider adding periodic session cleanup for long-running deployments
+    // to prevent memory growth with accumulated expired sessions
 
     let secret = env::var("SESSION_SECRET")
         .expect("SESSION_SECRET environment variable is required and must be at least 64 characters long");
