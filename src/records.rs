@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
 };
 use tower_sessions::Session;
@@ -8,7 +8,49 @@ use uuid::Uuid;
 
 use crate::auth::get_current_user;
 use crate::database::{Db, get_user_db};
-use crate::models::{CreateRecordPayload, GetRecordsQuery, GetRecordsResponse, Record};
+use crate::models::{
+    CreateRecordPayload, GetRecordsQuery, GetRecordsResponse, Record, UpdateRecordPayload,
+};
+
+pub fn validate_record_name(name: &str) -> Result<(), (StatusCode, String)> {
+    if name.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Record name cannot be empty".to_string(),
+        ));
+    }
+    if name.len() > 255 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Record name must be less than 255 characters".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_record_amount(amount: f64) -> Result<(), (StatusCode, String)> {
+    if amount == 0.0 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Record amount cannot be zero".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_category_id(category_id: &str) -> Result<(), (StatusCode, String)> {
+    if category_id.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Category ID cannot be empty".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn get_database_path() -> String {
+    std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data".to_string())
+}
 
 pub fn extract_record_from_row(row: libsql::Row) -> Result<Record, (StatusCode, String)> {
     let id: String = row.get(0).map_err(|e| {
@@ -60,33 +102,12 @@ pub async fn create_record(
     let user = get_current_user(&session).await?;
 
     // Input validation
-    if payload.name.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Record name cannot be empty".to_string(),
-        ));
-    }
-    if payload.name.len() > 255 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Record name must be less than 255 characters".to_string(),
-        ));
-    }
-    if payload.amount == 0.0 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Record amount cannot be zero".to_string(),
-        ));
-    }
-    if payload.category_id.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Category ID cannot be empty".to_string(),
-        ));
-    }
+    validate_record_name(&payload.name)?;
+    validate_record_amount(payload.amount)?;
+    validate_category_id(&payload.category_id)?;
 
     // Get user's database
-    let data_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data".to_string());
+    let data_path = get_database_path();
     let user_db = get_user_db(&data_path, &user.id).await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -210,4 +231,122 @@ pub async fn get_records(
             total_count,
         }),
     ))
+}
+
+pub async fn update_record(
+    State(_main_db): State<Db>,
+    session: Session,
+    Path(record_id): Path<String>,
+    Json(payload): Json<UpdateRecordPayload>,
+) -> Result<(StatusCode, Json<Record>), (StatusCode, String)> {
+    // Get current user from session
+    let user = get_current_user(&session).await?;
+
+    // Validate that at least one field is being updated
+    if payload.name.is_none()
+        && payload.amount.is_none()
+        && payload.category_id.is_none()
+        && payload.timestamp.is_none()
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "At least one field must be provided for update".to_string(),
+        ));
+    }
+
+    // Input validation for provided fields
+    if let Some(ref name) = payload.name {
+        validate_record_name(name)?;
+    }
+
+    if let Some(amount) = payload.amount {
+        validate_record_amount(amount)?;
+    }
+
+    if let Some(ref category_id) = payload.category_id {
+        validate_category_id(category_id)?;
+    }
+
+    // Get user's database
+    let data_path = get_database_path();
+    let user_db = get_user_db(&data_path, &user.id).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to get user database: {}", e),
+        )
+    })?;
+
+    let conn = user_db.write().await;
+
+    // First, check if the record exists and belongs to the user
+    let mut existing_rows = conn
+        .query(
+            "SELECT id, name, amount, category_id, timestamp FROM records WHERE id = ?",
+            [record_id.as_str()],
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to query existing record: {}", e),
+            )
+        })?;
+
+    let existing_record = if let Some(row) = existing_rows.next().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to read existing record: {}", e),
+        )
+    })? {
+        extract_record_from_row(row)?
+    } else {
+        return Err((StatusCode::NOT_FOUND, "Record not found".to_string()));
+    };
+
+    // Build the updated record with new values or keep existing ones
+    let updated_name = payload.name.as_deref().unwrap_or(&existing_record.name);
+    let updated_amount = payload.amount.unwrap_or(existing_record.amount);
+    let updated_category_id = payload
+        .category_id
+        .as_deref()
+        .unwrap_or(&existing_record.category_id);
+    let updated_timestamp = payload.timestamp.unwrap_or(existing_record.timestamp);
+
+    // Update the record and verify it was actually modified
+    let affected_rows = conn
+        .execute(
+            "UPDATE records SET name = ?, amount = ?, category_id = ?, timestamp = ? WHERE id = ?",
+            (
+                updated_name,
+                updated_amount,
+                updated_category_id,
+                updated_timestamp,
+                record_id.as_str(),
+            ),
+        )
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to update record: {}", e),
+            )
+        })?;
+
+    // Verify the update actually modified a record
+    if affected_rows == 0 {
+        return Err((
+            StatusCode::NOT_FOUND,
+            "Record not found or no changes made".to_string(),
+        ));
+    }
+
+    let updated_record = Record {
+        id: record_id,
+        name: updated_name.to_string(),
+        amount: updated_amount,
+        category_id: updated_category_id.to_string(),
+        timestamp: updated_timestamp,
+    };
+
+    Ok((StatusCode::OK, Json(updated_record)))
 }

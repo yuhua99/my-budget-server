@@ -43,6 +43,14 @@ pub struct CreateRecordPayload {
 }
 
 #[derive(Deserialize)]
+pub struct UpdateRecordPayload {
+    pub name: Option<String>,
+    pub amount: Option<f64>,
+    pub category_id: Option<String>,
+    pub timestamp: Option<i64>,
+}
+
+#[derive(Deserialize)]
 pub struct GetRecordsQuery {
     pub start_time: Option<i64>,
     pub end_time: Option<i64>,

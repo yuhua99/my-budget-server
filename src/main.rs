@@ -1,7 +1,7 @@
 use axum::{
     Router,
     response::Html,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use std::env;
 use time::Duration;
@@ -48,6 +48,7 @@ async fn main() {
             "/records",
             post(records::create_record).get(records::get_records),
         )
+        .route("/records/:id", put(records::update_record))
         .layer(session_layer)
         .with_state(main_db);
 
