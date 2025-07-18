@@ -3,6 +3,8 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
+use std::sync::{Arc, OnceLock};
+use tokio::sync::RwLock;
 use tower_sessions::Session;
 use uuid::Uuid;
 
@@ -48,41 +50,55 @@ pub fn validate_category_id(category_id: &str) -> Result<(), (StatusCode, String
     Ok(())
 }
 
-fn get_database_path() -> String {
-    std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data".to_string())
+static CACHED_DATABASE_PATH: OnceLock<String> = OnceLock::new();
+
+fn get_database_path() -> &'static str {
+    CACHED_DATABASE_PATH
+        .get_or_init(|| std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data".to_string()))
+}
+
+async fn get_user_database(
+    user_id: &str,
+) -> Result<Arc<RwLock<libsql::Connection>>, (StatusCode, String)> {
+    let data_path = get_database_path();
+    get_user_db(&data_path, user_id).await.map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Database access error".to_string(),
+        )
+    })
+}
+
+fn db_error() -> (StatusCode, String) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Database operation failed".to_string(),
+    )
+}
+
+fn db_error_with_context(context: &str) -> (StatusCode, String) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        format!("Database error: {}", context),
+    )
 }
 
 pub fn extract_record_from_row(row: libsql::Row) -> Result<Record, (StatusCode, String)> {
-    let id: String = row.get(0).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to get record id: {}", e),
-        )
-    })?;
-    let name: String = row.get(1).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to get record name: {}", e),
-        )
-    })?;
-    let amount: f64 = row.get(2).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to get record amount: {}", e),
-        )
-    })?;
-    let category_id: String = row.get(3).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to get record category_id: {}", e),
-        )
-    })?;
-    let timestamp: i64 = row.get(4).map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to get record timestamp: {}", e),
-        )
-    })?;
+    let id: String = row
+        .get(0)
+        .map_err(|_| db_error_with_context("invalid record data"))?;
+    let name: String = row
+        .get(1)
+        .map_err(|_| db_error_with_context("invalid record data"))?;
+    let amount: f64 = row
+        .get(2)
+        .map_err(|_| db_error_with_context("invalid record data"))?;
+    let category_id: String = row
+        .get(3)
+        .map_err(|_| db_error_with_context("invalid record data"))?;
+    let timestamp: i64 = row
+        .get(4)
+        .map_err(|_| db_error_with_context("invalid record data"))?;
 
     Ok(Record {
         id,
@@ -107,13 +123,7 @@ pub async fn create_record(
     validate_category_id(&payload.category_id)?;
 
     // Get user's database
-    let data_path = get_database_path();
-    let user_db = get_user_db(&data_path, &user.id).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to get user database: {}", e),
-        )
-    })?;
+    let user_db = get_user_database(&user.id).await?;
 
     // Create record
     let record_id = Uuid::new_v4().to_string();
@@ -131,12 +141,7 @@ pub async fn create_record(
         ),
     )
     .await
-    .map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to create record: {}", e),
-        )
-    })?;
+    .map_err(|_| db_error_with_context("record creation failed"))?;
 
     let record = Record {
         id: record_id,
@@ -156,13 +161,7 @@ pub async fn get_records(
 ) -> Result<(StatusCode, Json<GetRecordsResponse>), (StatusCode, String)> {
     let user = get_current_user(&session).await?;
 
-    let data_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data".to_string());
-    let user_db = get_user_db(&data_path, &user.id).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to get user database: {}", e),
-        )
-    })?;
+    let user_db = get_user_database(&user.id).await?;
 
     let limit = query.limit.unwrap_or(500);
 
@@ -179,25 +178,10 @@ pub async fn get_records(
     let mut count_rows = conn
         .query(count_query, (start_time, end_time))
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to count records: {}", e),
-            )
-        })?;
+        .map_err(|_| db_error_with_context("failed to count records"))?;
 
-    let total_count: u32 = if let Some(row) = count_rows.next().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to read count row: {}", e),
-        )
-    })? {
-        row.get(0).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to get count value: {}", e),
-            )
-        })?
+    let total_count: u32 = if let Some(row) = count_rows.next().await.map_err(|_| db_error())? {
+        row.get(0).map_err(|_| db_error())?
     } else {
         0
     };
@@ -207,20 +191,10 @@ pub async fn get_records(
     let mut rows = conn
         .query(records_query, (start_time, end_time, limit))
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to query records: {}", e),
-            )
-        })?;
+        .map_err(|_| db_error_with_context("failed to query records"))?;
 
     let mut records = Vec::new();
-    while let Some(row) = rows.next().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to read record row: {}", e),
-        )
-    })? {
+    while let Some(row) = rows.next().await.map_err(|_| db_error())? {
         records.push(extract_record_from_row(row)?);
     }
 
@@ -268,13 +242,7 @@ pub async fn update_record(
     }
 
     // Get user's database
-    let data_path = get_database_path();
-    let user_db = get_user_db(&data_path, &user.id).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to get user database: {}", e),
-        )
-    })?;
+    let user_db = get_user_database(&user.id).await?;
 
     let conn = user_db.write().await;
 
@@ -285,19 +253,9 @@ pub async fn update_record(
             [record_id.as_str()],
         )
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to query existing record: {}", e),
-            )
-        })?;
+        .map_err(|_| db_error_with_context("failed to query existing record"))?;
 
-    let existing_record = if let Some(row) = existing_rows.next().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to read existing record: {}", e),
-        )
-    })? {
+    let existing_record = if let Some(row) = existing_rows.next().await.map_err(|_| db_error())? {
         extract_record_from_row(row)?
     } else {
         return Err((StatusCode::NOT_FOUND, "Record not found".to_string()));
@@ -325,12 +283,7 @@ pub async fn update_record(
             ),
         )
         .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to update record: {}", e),
-            )
-        })?;
+        .map_err(|_| db_error_with_context("failed to update record"))?;
 
     // Verify the update actually modified a record
     if affected_rows == 0 {
@@ -349,4 +302,31 @@ pub async fn update_record(
     };
 
     Ok((StatusCode::OK, Json(updated_record)))
+}
+
+pub async fn delete_record(
+    State(_main_db): State<Db>,
+    session: Session,
+    Path(record_id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    // Get current user from session
+    let user = get_current_user(&session).await?;
+
+    // Get user's database
+    let user_db = get_user_database(&user.id).await?;
+
+    let conn = user_db.write().await;
+
+    // Delete the record and verify it was actually deleted
+    let affected_rows = conn
+        .execute("DELETE FROM records WHERE id = ?", [record_id.as_str()])
+        .await
+        .map_err(|_| db_error_with_context("failed to delete record"))?;
+
+    // Verify the delete actually removed a record
+    if affected_rows == 0 {
+        return Err((StatusCode::NOT_FOUND, "Record not found".to_string()));
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }

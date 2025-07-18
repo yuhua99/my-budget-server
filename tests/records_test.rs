@@ -288,10 +288,11 @@ async fn limit_with_time_range() {
     // Create more records for this test
     let base_time = 1700000000;
     for i in 0..5 {
+        let record_name = format!("Record {}", i);
         create_test_record(
             &data_path,
             &user_id,
-            &format!("Record {}", i),
+            &record_name,
             10.0 + i as f64,
             "test",
             base_time + i * 10,
@@ -1150,4 +1151,305 @@ async fn update_record_preserves_unchanged_fields() {
     assert_eq!(db_record.amount, updated_amount);
     assert_eq!(db_record.category_id, original_category);
     assert_eq!(db_record.timestamp, original_timestamp);
+}
+
+// Delete Record Tests
+
+/// Helper function to delete a record from the database
+async fn delete_record_in_db(
+    data_path: &str,
+    user_id: &str,
+    record_id: &str,
+) -> Result<(), String> {
+    use my_budget_server::database::get_user_db;
+
+    let user_db = get_user_db(data_path, user_id)
+        .await
+        .map_err(|e| format!("Failed to get user database: {}", e))?;
+
+    let conn = user_db.write().await;
+    let affected_rows = conn
+        .execute("DELETE FROM records WHERE id = ?", [record_id])
+        .await
+        .map_err(|e| format!("Failed to delete record: {}", e))?;
+
+    if affected_rows == 0 {
+        return Err("Record not found".to_string());
+    }
+
+    Ok(())
+}
+
+/// Tests successful deletion of an existing record.
+/// Verifies that the record is removed and cannot be retrieved afterward.
+#[tokio::test]
+async fn delete_record_success() {
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    // Create a test record
+    let record_id = create_test_record(
+        &data_path,
+        &user_id,
+        "Record to Delete",
+        50.00,
+        "test_category",
+        TEST_BASE_TIMESTAMP,
+    )
+    .await;
+
+    // Verify record exists before deletion
+    let record_before = get_single_record_from_db(&data_path, &user_id, &record_id)
+        .await
+        .expect("Record should exist before deletion");
+    assert_eq!(record_before.name, "Record to Delete");
+
+    // Delete the record
+    delete_record_in_db(&data_path, &user_id, &record_id)
+        .await
+        .expect("Failed to delete existing record");
+
+    // Verify record no longer exists
+    let record_after = get_single_record_from_db(&data_path, &user_id, &record_id).await;
+    assert!(
+        record_after.is_none(),
+        "Record should not exist after deletion"
+    );
+}
+
+/// Tests deletion of a record that doesn't exist.
+/// Verifies that appropriate error is returned.
+#[tokio::test]
+async fn delete_record_not_found() {
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    let non_existent_id = "non-existent-record-id";
+
+    // Try to delete non-existent record
+    let result = delete_record_in_db(&data_path, &user_id, non_existent_id).await;
+    assert!(result.is_err(), "Deleting non-existent record should fail");
+    assert_eq!(result.unwrap_err(), "Record not found");
+}
+
+/// Tests that deleting a record doesn't affect other records.
+/// Creates multiple records, deletes one, and verifies others remain intact.
+#[tokio::test]
+async fn delete_record_preserves_other_records() {
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    // Create multiple test records
+    let record_id_1 = create_test_record(
+        &data_path,
+        &user_id,
+        "Record 1",
+        10.00,
+        "category1",
+        TEST_BASE_TIMESTAMP,
+    )
+    .await;
+
+    let record_id_2 = create_test_record(
+        &data_path,
+        &user_id,
+        "Record 2",
+        20.00,
+        "category2",
+        TEST_BASE_TIMESTAMP + 100,
+    )
+    .await;
+
+    let record_id_3 = create_test_record(
+        &data_path,
+        &user_id,
+        "Record 3",
+        30.00,
+        "category3",
+        TEST_BASE_TIMESTAMP + 200,
+    )
+    .await;
+
+    // Verify all records exist
+    let (records_before, total_before) =
+        get_records_from_db(&data_path, &user_id, None, None, None).await;
+    assert_eq!(records_before.len(), 3);
+    assert_eq!(total_before, 3);
+
+    // Delete the middle record
+    delete_record_in_db(&data_path, &user_id, &record_id_2)
+        .await
+        .expect("Failed to delete middle record");
+
+    // Verify only the middle record was deleted
+    let (records_after, total_after) =
+        get_records_from_db(&data_path, &user_id, None, None, None).await;
+    assert_eq!(records_after.len(), 2);
+    assert_eq!(total_after, 2);
+
+    // Verify remaining records are intact
+    let record_1_after = get_single_record_from_db(&data_path, &user_id, &record_id_1)
+        .await
+        .expect("Record 1 should still exist");
+    assert_eq!(record_1_after.name, "Record 1");
+
+    let record_3_after = get_single_record_from_db(&data_path, &user_id, &record_id_3)
+        .await
+        .expect("Record 3 should still exist");
+    assert_eq!(record_3_after.name, "Record 3");
+
+    // Verify deleted record is gone
+    let record_2_after = get_single_record_from_db(&data_path, &user_id, &record_id_2).await;
+    assert!(record_2_after.is_none(), "Record 2 should be deleted");
+}
+
+/// Tests deleting all records one by one.
+/// Verifies that the database becomes empty after all deletions.
+#[tokio::test]
+async fn delete_all_records_sequentially() {
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    // Create multiple records
+    let record_ids = vec![
+        create_test_record(
+            &data_path,
+            &user_id,
+            "Record A",
+            10.00,
+            "cat1",
+            TEST_BASE_TIMESTAMP,
+        )
+        .await,
+        create_test_record(
+            &data_path,
+            &user_id,
+            "Record B",
+            20.00,
+            "cat2",
+            TEST_BASE_TIMESTAMP + 100,
+        )
+        .await,
+        create_test_record(
+            &data_path,
+            &user_id,
+            "Record C",
+            30.00,
+            "cat3",
+            TEST_BASE_TIMESTAMP + 200,
+        )
+        .await,
+    ];
+
+    // Verify all records exist
+    let (records_initial, total_initial) =
+        get_records_from_db(&data_path, &user_id, None, None, None).await;
+    assert_eq!(records_initial.len(), 3);
+    assert_eq!(total_initial, 3);
+
+    // Delete records one by one
+    for (i, record_id) in record_ids.iter().enumerate() {
+        delete_record_in_db(&data_path, &user_id, record_id)
+            .await
+            .unwrap_or_else(|e| panic!("Failed to delete record {}: {}", i + 1, e));
+
+        // Verify count decreases
+        let (records_current, total_current) =
+            get_records_from_db(&data_path, &user_id, None, None, None).await;
+        assert_eq!(records_current.len(), 2 - i);
+        assert_eq!(total_current, (2 - i) as u32);
+    }
+
+    // Verify database is empty
+    let (records_final, total_final) =
+        get_records_from_db(&data_path, &user_id, None, None, None).await;
+    assert_eq!(records_final.len(), 0);
+    assert_eq!(total_final, 0);
+}
+
+/// Tests deletion with malformed UUID.
+/// Verifies that malformed UUIDs are handled gracefully.
+#[tokio::test]
+async fn delete_record_malformed_uuid() {
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    let malformed_ids = vec![
+        "invalid-uuid",
+        "12345",
+        "not-a-uuid-at-all",
+        "123e4567-e89b-12d3-a456-42661417400g", // Invalid character 'g'
+        "123e4567-e89b-12d3-a456-426614174000000", // Too long
+        "123e4567-e89b-12d3-a456",              // Too short
+    ];
+
+    for malformed_id in malformed_ids {
+        let result = delete_record_in_db(&data_path, &user_id, malformed_id).await;
+        assert!(
+            result.is_err(),
+            "Malformed UUID '{}' should result in error",
+            malformed_id
+        );
+        assert_eq!(result.unwrap_err(), "Record not found");
+    }
+}
+
+/// Tests deletion with empty and whitespace-only IDs.
+/// Verifies that empty strings are handled gracefully.
+#[tokio::test]
+async fn delete_record_empty_id() {
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    let empty_ids = vec!["", "   ", "\t", "\n", "  \t\n  "];
+
+    for empty_id in empty_ids {
+        let result = delete_record_in_db(&data_path, &user_id, empty_id).await;
+        assert!(
+            result.is_err(),
+            "Empty ID '{}' should result in error",
+            empty_id.escape_debug()
+        );
+        assert_eq!(result.unwrap_err(), "Record not found");
+    }
+}
+
+/// Tests deletion with special characters in ID.
+/// Verifies that special characters are handled safely.
+#[tokio::test]
+async fn delete_record_special_characters() {
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    let special_char_ids = vec![
+        "'; DROP TABLE records; --",
+        "<script>alert('xss')</script>",
+        "NULL",
+        "\\x00\\x01\\x02",
+        "../../etc/passwd",
+        "record_id with spaces",
+        "record-id-with-emojis-🎉",
+    ];
+
+    for special_id in special_char_ids {
+        let result = delete_record_in_db(&data_path, &user_id, special_id).await;
+        assert!(
+            result.is_err(),
+            "Special character ID '{}' should result in error",
+            special_id
+        );
+        assert_eq!(result.unwrap_err(), "Record not found");
+    }
+}
+
+/// Tests deletion with very long ID strings.
+/// Verifies that extremely long strings are handled gracefully.
+#[tokio::test]
+async fn delete_record_very_long_id() {
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    // Create a very long string (1000 characters)
+    let very_long_id = "a".repeat(1000);
+    let result = delete_record_in_db(&data_path, &user_id, &very_long_id).await;
+    assert!(result.is_err(), "Very long ID should result in error");
+    assert_eq!(result.unwrap_err(), "Record not found");
+
+    // Test with extremely long string (10000 characters)
+    let extremely_long_id = "b".repeat(10000);
+    let result = delete_record_in_db(&data_path, &user_id, &extremely_long_id).await;
+    assert!(result.is_err(), "Extremely long ID should result in error");
+    assert_eq!(result.unwrap_err(), "Record not found");
 }
