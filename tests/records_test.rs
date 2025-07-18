@@ -1,15 +1,34 @@
+/*!
+ * Records Integration Tests
+ *
+ * This module contains comprehensive integration tests for the records management functionality.
+ * Tests cover the full get_records API including time-range filtering, pagination, and ordering.
+ *
+ * Test Categories:
+ * - Basic CRUD operations (empty database, record retrieval)
+ * - Time-range filtering (start_time, end_time, both)
+ * - Pagination and limits (default behavior, custom limits)
+ * - Ordering and consistency (timestamp ordering, edge cases)
+ * - Data integrity (category preservation, amount accuracy)
+ *
+ * All tests use isolated temporary databases for complete test isolation.
+ */
+
 mod common;
 
 use common::*;
 
+// Test data constants - only for widely reused values
+const TEST_BASE_TIMESTAMP: i64 = 1700000000; // Nov 14, 2023 22:13:20 UTC
+const TEST_TIME_INCREMENT: i64 = 100; // 100 seconds between test records
+
 // Test utility functions specific to records tests
 fn get_test_timestamps() -> (i64, i64, i64, i64) {
-    let base_time = 1700000000; // Fixed base timestamp for consistent testing
     (
-        base_time,       // old_time
-        base_time + 100, // middle_time
-        base_time + 200, // new_time
-        base_time + 300, // future_time
+        TEST_BASE_TIMESTAMP,                           // old_time
+        TEST_BASE_TIMESTAMP + TEST_TIME_INCREMENT,     // middle_time
+        TEST_BASE_TIMESTAMP + TEST_TIME_INCREMENT * 2, // new_time
+        TEST_BASE_TIMESTAMP + TEST_TIME_INCREMENT * 3, // future_time
     )
 }
 

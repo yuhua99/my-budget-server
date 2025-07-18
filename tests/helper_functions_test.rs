@@ -1,18 +1,35 @@
-// Unit tests for helper functions in the records module
-// These tests focus on testing the extract_record_from_row function
-// and other utility functions without requiring full database setup
+/*!
+ * Helper Functions Unit Tests
+ *
+ * This module contains unit tests for utility functions in the records module,
+ * particularly focusing on data extraction and validation functions.
+ *
+ * Test Categories:
+ * - extract_record_from_row function tests (data type handling, edge cases)
+ * - Default behavior validation (time ranges, limits)
+ * - Database precision and consistency tests
+ *
+ * All tests use isolated temporary databases for complete test isolation.
+ */
 
 mod common;
 
 use common::*;
 use my_budget_server::database::get_user_db;
+use my_budget_server::records::extract_record_from_row;
 
+// Test data constants - only for widely reused values
+const TEST_BASE_TIMESTAMP: i64 = 1700000000; // Nov 14, 2023 22:13:20 UTC
+
+/// Tests the core extract_record_from_row function with standard data types.
+/// Verifies that the function correctly extracts all fields from a database row
+/// and constructs a proper Record struct.
 #[tokio::test]
 async fn extract_record_from_row_success() {
     let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Create a test record
-    let timestamp = 1700000000;
+    let timestamp = TEST_BASE_TIMESTAMP;
     let record_id = create_test_record(
         &data_path,
         &user_id,
@@ -24,7 +41,9 @@ async fn extract_record_from_row_success() {
     .await;
 
     // Query the record back to test extraction
-    let user_db = get_user_db(&data_path, &user_id).await.unwrap();
+    let user_db = get_user_db(&data_path, &user_id)
+        .await
+        .expect("Failed to get user database for test");
     let conn = user_db.read().await;
     let mut rows = conn
         .query(
@@ -32,26 +51,27 @@ async fn extract_record_from_row_success() {
             [record_id.as_str()],
         )
         .await
-        .unwrap();
+        .expect("Failed to execute database query in test");
 
-    if let Some(row) = rows.next().await.unwrap() {
-        // Test the extraction logic manually (simulating extract_record_from_row)
-        let id: String = row.get(0).unwrap();
-        let name: String = row.get(1).unwrap();
-        let amount: f64 = row.get(2).unwrap();
-        let category_id: String = row.get(3).unwrap();
-        let timestamp_result: i64 = row.get(4).unwrap();
+    if let Some(row) = rows.next().await.expect("Failed to read row from database") {
+        // Test the actual extract_record_from_row function
+        let record = extract_record_from_row(row).expect("Failed to extract record from row");
 
-        assert_eq!(id, record_id);
-        assert_eq!(name, "Test Record");
-        assert_eq!(amount, 25.50);
-        assert_eq!(category_id, "test_category");
-        assert_eq!(timestamp_result, timestamp);
+        assert_eq!(record.id, record_id);
+        assert_eq!(record.name, "Test Record");
+        assert_eq!(record.amount, 25.50);
+        assert_eq!(record.category_id, "test_category");
+        assert_eq!(record.timestamp, timestamp);
     } else {
-        panic!("No record found for extraction test");
+        panic!(
+            "Expected to find test record with ID {}, but query returned no results",
+            record_id
+        );
     }
 }
 
+/// Tests extract_record_from_row with Unicode characters and special symbols.
+/// Ensures proper handling of emoji, accented characters, and symbols in names and categories.
 #[tokio::test]
 async fn extract_record_with_special_characters() {
     let (data_path, user_id, _temp_dir) = setup_test_environment().await;
@@ -65,7 +85,7 @@ async fn extract_record_with_special_characters() {
         special_name,
         99.99,
         special_category,
-        1700000000,
+        TEST_BASE_TIMESTAMP,
     )
     .await;
 
@@ -78,19 +98,25 @@ async fn extract_record_with_special_characters() {
             [record_id.as_str()],
         )
         .await
-        .unwrap();
+        .expect("Failed to execute database query in test");
 
-    if let Some(row) = rows.next().await.unwrap() {
-        let name: String = row.get(1).unwrap();
-        let category_id: String = row.get(3).unwrap();
+    if let Some(row) = rows.next().await.expect("Failed to read row from database") {
+        let record =
+            extract_record_from_row(row).expect("Failed to extract record with special characters");
 
-        assert_eq!(name, special_name);
-        assert_eq!(category_id, special_category);
+        assert_eq!(record.name, special_name);
+        assert_eq!(record.category_id, special_category);
+        assert_eq!(record.amount, 99.99);
     } else {
-        panic!("Record with special characters not found");
+        panic!(
+            "Expected to find record with special characters (ID: {}), but query returned no results",
+            record_id
+        );
     }
 }
 
+/// Tests extract_record_from_row with extreme numeric values.
+/// Validates handling of very large, very small, and negative amounts.
 #[tokio::test]
 async fn extract_record_with_extreme_values() {
     let (data_path, user_id, _temp_dir) = setup_test_environment().await;
@@ -106,7 +132,7 @@ async fn extract_record_with_extreme_values() {
         "Large Amount",
         large_amount,
         "test",
-        1700000001,
+        TEST_BASE_TIMESTAMP + 1,
     )
     .await;
     let _id2 = create_test_record(
@@ -115,7 +141,7 @@ async fn extract_record_with_extreme_values() {
         "Small Amount",
         small_amount,
         "test",
-        1700000002,
+        TEST_BASE_TIMESTAMP + 2,
     )
     .await;
     let _id3 = create_test_record(
@@ -124,7 +150,7 @@ async fn extract_record_with_extreme_values() {
         "Negative Amount",
         negative_amount,
         "test",
-        1700000003,
+        TEST_BASE_TIMESTAMP + 3,
     )
     .await;
 
@@ -139,7 +165,7 @@ async fn extract_record_with_extreme_values() {
     let negative_record = records
         .iter()
         .find(|r| r.name == "Negative Amount")
-        .unwrap();
+        .expect("Failed to execute database query in test");
 
     assert_eq!(large_record.amount, large_amount);
     assert_eq!(small_record.amount, small_amount);
@@ -160,7 +186,7 @@ async fn extract_record_with_long_strings() {
         &long_name,
         42.42,
         &long_category,
-        1700000000,
+        TEST_BASE_TIMESTAMP,
     )
     .await;
 
@@ -173,53 +199,95 @@ async fn extract_record_with_long_strings() {
             [record_id.as_str()],
         )
         .await
-        .unwrap();
+        .expect("Failed to execute database query in test");
 
-    if let Some(row) = rows.next().await.unwrap() {
-        let name: String = row.get(1).unwrap();
-        let category_id: String = row.get(3).unwrap();
+    if let Some(row) = rows.next().await.expect("Failed to read row from database") {
+        let record =
+            extract_record_from_row(row).expect("Failed to extract record with long strings");
 
-        assert_eq!(name, long_name);
-        assert_eq!(category_id, long_category);
-        assert_eq!(name.len(), 200);
+        assert_eq!(record.name, long_name);
+        assert_eq!(record.category_id, long_category);
+        assert_eq!(record.name.len(), 200);
+        assert_eq!(record.amount, 42.42);
     } else {
-        panic!("Record with long strings not found");
+        panic!(
+            "Expected to find record with long strings (ID: {}), but query returned no results",
+            record_id
+        );
     }
 }
 
+/// Tests the default time behavior of get_records function.
+/// Verifies that records are retrieved correctly when no time parameters are specified,
+/// using the default start_time=0 and end_time=current_time logic.
 #[tokio::test]
 async fn default_time_behavior() {
-    // Test the default time logic used in get_records function
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
+
+    // Create a record to test default time behavior
     let current_time = time::OffsetDateTime::now_utc().unix_timestamp();
+    create_test_record(
+        &data_path,
+        &user_id,
+        "Current Record",
+        50.0,
+        "test",
+        current_time,
+    )
+    .await;
 
-    // Test start_time default (should be 0)
-    let start_time = 0;
-    assert_eq!(start_time, 0);
+    // Test that get_records with no time parameters returns records (uses default start_time=0, end_time=now)
+    let (records, total_count) = get_records_from_db(&data_path, &user_id, None, None, None).await;
 
-    // Test end_time default (should be current time)
-    let end_time = time::OffsetDateTime::now_utc().unix_timestamp();
-    assert!(end_time >= current_time);
-    assert!(end_time - current_time < 5); // Should be within 5 seconds
+    assert_eq!(records.len(), 1);
+    assert_eq!(total_count, 1);
+    assert_eq!(records[0].name, "Current Record");
 
-    // Test with actual values
-    let specific_start = 1700000000;
-    let specific_end = 1700001000;
+    // Test that providing start_time=0 explicitly works the same
+    let (records2, total_count2) =
+        get_records_from_db(&data_path, &user_id, Some(0), None, None).await;
 
-    assert_eq!(specific_start, 1700000000);
-    assert_eq!(specific_end, 1700001000);
+    assert_eq!(records2.len(), records.len());
+    assert_eq!(total_count2, total_count);
 }
 
+/// Tests the default limit behavior and pagination functionality.
+/// Validates that the default limit of 500 works correctly and that explicit limits
+/// properly control the number of returned records while maintaining accurate total counts.
 #[tokio::test]
 async fn limit_default_behavior() {
-    // Test the default limit logic used in get_records function
-    let default_limit = 500;
-    assert_eq!(default_limit, 500);
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
-    let custom_limit = 100;
-    assert_eq!(custom_limit, 100);
+    // Create multiple records to test limit behavior
+    let base_time = TEST_BASE_TIMESTAMP;
+    for i in 0..10 {
+        create_test_record(
+            &data_path,
+            &user_id,
+            &format!("Record {}", i),
+            10.0 + i as f64,
+            "test",
+            base_time + i,
+        )
+        .await;
+    }
 
-    let zero_limit = 0;
-    assert_eq!(zero_limit, 0);
+    // Test default limit (should be 500, but we only have 10 records)
+    let (records, total_count) = get_records_from_db(&data_path, &user_id, None, None, None).await;
+    assert_eq!(records.len(), 10); // All records returned
+    assert_eq!(total_count, 10);
+
+    // Test explicit limit smaller than available records
+    let (limited_records, total_count2) =
+        get_records_from_db(&data_path, &user_id, None, None, Some(5)).await;
+    assert_eq!(limited_records.len(), 5); // Only 5 returned
+    assert_eq!(total_count2, 10); // But total count shows all 10
+
+    // Test limit larger than available records
+    let (all_records, total_count3) =
+        get_records_from_db(&data_path, &user_id, None, None, Some(20)).await;
+    assert_eq!(all_records.len(), 10); // All 10 returned (can't return more than exist)
+    assert_eq!(total_count3, 10);
 }
 
 #[tokio::test]
@@ -228,9 +296,9 @@ async fn database_timestamp_precision() {
 
     // Test with precise timestamps
     let precise_timestamps = [
-        1700000000, // Base time
-        1700000001, // +1 second
-        1700000002, // +2 seconds (changed from large number that might cause issues)
+        TEST_BASE_TIMESTAMP,     // Base time
+        TEST_BASE_TIMESTAMP + 1, // +1 second
+        TEST_BASE_TIMESTAMP + 2, // +2 seconds
     ];
 
     for (i, &timestamp) in precise_timestamps.iter().enumerate() {
