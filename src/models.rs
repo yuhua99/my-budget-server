@@ -62,3 +62,25 @@ pub struct GetRecordsResponse {
     pub records: Vec<Record>,
     pub total_count: u32,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Category {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct CreateCategoryPayload {
+    pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateCategoryPayload {
+    pub name: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct GetCategoriesResponse {
+    pub categories: Vec<Category>,
+    pub total_count: u32,
+}

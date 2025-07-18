@@ -8,9 +8,11 @@ use time::Duration;
 use tower_sessions::{Expiry, MemoryStore, Session, SessionManagerLayer, cookie::Key};
 
 pub mod auth;
+pub mod categories;
 pub mod database;
 pub mod models;
 pub mod records;
+pub mod utils;
 
 #[tokio::main]
 async fn main() {
@@ -52,6 +54,7 @@ async fn main() {
             "/records/:id",
             put(records::update_record).delete(records::delete_record),
         )
+        .route("/categories", post(categories::create_category))
         .layer(session_layer)
         .with_state(main_db);
 

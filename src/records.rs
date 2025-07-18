@@ -3,31 +3,21 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use std::sync::{Arc, OnceLock};
-use tokio::sync::RwLock;
 use tower_sessions::Session;
 use uuid::Uuid;
 
 use crate::auth::get_current_user;
-use crate::database::{Db, get_user_db};
+use crate::database::Db;
 use crate::models::{
     CreateRecordPayload, GetRecordsQuery, GetRecordsResponse, Record, UpdateRecordPayload,
 };
+use crate::utils::{
+    db_error, db_error_with_context, get_user_database, validate_category_exists,
+    validate_string_length,
+};
 
 pub fn validate_record_name(name: &str) -> Result<(), (StatusCode, String)> {
-    if name.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Record name cannot be empty".to_string(),
-        ));
-    }
-    if name.len() > 255 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Record name must be less than 255 characters".to_string(),
-        ));
-    }
-    Ok(())
+    validate_string_length(name, "Record name", 255)
 }
 
 pub fn validate_record_amount(amount: f64) -> Result<(), (StatusCode, String)> {
@@ -41,46 +31,7 @@ pub fn validate_record_amount(amount: f64) -> Result<(), (StatusCode, String)> {
 }
 
 pub fn validate_category_id(category_id: &str) -> Result<(), (StatusCode, String)> {
-    if category_id.trim().is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "Category ID cannot be empty".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-static CACHED_DATABASE_PATH: OnceLock<String> = OnceLock::new();
-
-fn get_database_path() -> &'static str {
-    CACHED_DATABASE_PATH
-        .get_or_init(|| std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data".to_string()))
-}
-
-async fn get_user_database(
-    user_id: &str,
-) -> Result<Arc<RwLock<libsql::Connection>>, (StatusCode, String)> {
-    let data_path = get_database_path();
-    get_user_db(&data_path, user_id).await.map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Database access error".to_string(),
-        )
-    })
-}
-
-fn db_error() -> (StatusCode, String) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "Database operation failed".to_string(),
-    )
-}
-
-fn db_error_with_context(context: &str) -> (StatusCode, String) {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        format!("Database error: {}", context),
-    )
+    validate_string_length(category_id, "Category ID", 100)
 }
 
 pub fn extract_record_from_row(row: libsql::Row) -> Result<Record, (StatusCode, String)> {
@@ -124,6 +75,9 @@ pub async fn create_record(
 
     // Get user's database
     let user_db = get_user_database(&user.id).await?;
+
+    // Validate that the category exists
+    validate_category_exists(&user_db, &payload.category_id).await?;
 
     // Create record
     let record_id = Uuid::new_v4().to_string();
@@ -243,6 +197,11 @@ pub async fn update_record(
 
     // Get user's database
     let user_db = get_user_database(&user.id).await?;
+
+    // Validate that the category exists if being updated
+    if let Some(ref category_id) = payload.category_id {
+        validate_category_exists(&user_db, category_id).await?;
+    }
 
     let conn = user_db.write().await;
 
