@@ -1,10 +1,10 @@
 use my_budget_server::database::{get_user_db, init_main_db};
 use my_budget_server::models::Record;
 use std::fs;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 use uuid::Uuid;
 
-pub async fn setup_test_environment() -> (String, String) {
+pub async fn setup_test_environment() -> (String, String, TempDir) {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
     let data_path = temp_dir
         .path()
@@ -29,10 +29,9 @@ pub async fn setup_test_environment() -> (String, String) {
         )
     });
 
-    // Keep the temp_dir alive by leaking it (for test duration)
-    std::mem::forget(temp_dir);
-
-    (data_path, user_id)
+    // Return temp_dir so it stays alive during the test
+    // It will be automatically cleaned up when dropped
+    (data_path, user_id, temp_dir)
 }
 
 pub async fn create_test_record(

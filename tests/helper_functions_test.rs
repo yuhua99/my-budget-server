@@ -9,7 +9,7 @@ use my_budget_server::database::get_user_db;
 
 #[tokio::test]
 async fn extract_record_from_row_success() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Create a test record
     let timestamp = 1700000000;
@@ -54,7 +54,7 @@ async fn extract_record_from_row_success() {
 
 #[tokio::test]
 async fn extract_record_with_special_characters() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Create a record with special characters and unicode
     let special_name = "Test Record with émojis 🎉 and symbols @#$%";
@@ -93,7 +93,7 @@ async fn extract_record_with_special_characters() {
 
 #[tokio::test]
 async fn extract_record_with_extreme_values() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Test with extreme float values
     let large_amount = 999999.99;
@@ -148,7 +148,7 @@ async fn extract_record_with_extreme_values() {
 
 #[tokio::test]
 async fn extract_record_with_long_strings() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Test with long strings (but within reasonable limits)
     let long_name = "A".repeat(200); // 200 character name
@@ -224,7 +224,7 @@ async fn limit_default_behavior() {
 
 #[tokio::test]
 async fn database_timestamp_precision() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Test with precise timestamps
     let precise_timestamps = [

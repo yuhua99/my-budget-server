@@ -39,7 +39,7 @@ async fn create_sample_records(data_path: &str, user_id: &str) {
 
 #[tokio::test]
 async fn empty_database() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     let (records, total_count) = get_records_from_db(&data_path, &user_id, None, None, None).await;
 
@@ -49,7 +49,7 @@ async fn empty_database() {
 
 #[tokio::test]
 async fn get_all_records() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
     create_sample_records(&data_path, &user_id).await;
 
     let (records, total_count) = get_records_from_db(&data_path, &user_id, None, None, None).await;
@@ -70,7 +70,7 @@ async fn get_all_records() {
 
 #[tokio::test]
 async fn time_range_filtering_start_only() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
     create_sample_records(&data_path, &user_id).await;
 
     let (_old_time, middle_time, _new_time, _future_time) = get_test_timestamps();
@@ -87,7 +87,7 @@ async fn time_range_filtering_start_only() {
 
 #[tokio::test]
 async fn time_range_filtering_end_only() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
     create_sample_records(&data_path, &user_id).await;
 
     let (_old_time, middle_time, _new_time, _future_time) = get_test_timestamps();
@@ -104,7 +104,7 @@ async fn time_range_filtering_end_only() {
 
 #[tokio::test]
 async fn time_range_filtering_both() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
     create_sample_records(&data_path, &user_id).await;
 
     let (old_time, _middle_time, new_time, _future_time) = get_test_timestamps();
@@ -123,7 +123,7 @@ async fn time_range_filtering_both() {
 
 #[tokio::test]
 async fn limit_functionality() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
     create_sample_records(&data_path, &user_id).await;
 
     // Test limit of 2
@@ -140,7 +140,7 @@ async fn limit_functionality() {
 
 #[tokio::test]
 async fn limit_with_time_range() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Create more records for this test
     let base_time = 1700000000;
@@ -177,7 +177,7 @@ async fn limit_with_time_range() {
 
 #[tokio::test]
 async fn default_limit() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
     create_sample_records(&data_path, &user_id).await;
 
     // Test with None limit (should use default of 500)
@@ -189,7 +189,7 @@ async fn default_limit() {
 
 #[tokio::test]
 async fn ordering_consistency() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Create records with very close timestamps
     let base_time = 1700000000;
@@ -211,7 +211,7 @@ async fn ordering_consistency() {
 
 #[tokio::test]
 async fn edge_case_no_results_in_range() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
     create_sample_records(&data_path, &user_id).await;
 
     let (_old_time, _middle_time, _new_time, future_time) = get_test_timestamps();
@@ -232,7 +232,7 @@ async fn edge_case_no_results_in_range() {
 
 #[tokio::test]
 async fn single_record_in_range() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     let base_time = 1700000000;
     create_test_record(
@@ -257,7 +257,7 @@ async fn single_record_in_range() {
 
 #[tokio::test]
 async fn category_preservation() {
-    let (data_path, user_id) = setup_test_environment().await;
+    let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     let base_time = 1700000000;
     create_test_record(
