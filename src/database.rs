@@ -28,6 +28,10 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 "#;
 
+const CREATE_RECORDS_INDEX: &str = r#"
+CREATE INDEX IF NOT EXISTS idx_records_timestamp ON records(timestamp);
+"#;
+
 pub type Db = Arc<RwLock<Connection>>;
 
 /// Main users registry DB (users.db)
@@ -50,6 +54,7 @@ pub async fn get_user_db(data_dir: &str, user_id: &str) -> Result<Db> {
     // Create tables for user's expense data
     conn.execute(CREATE_RECORDS_TABLE, ()).await?;
     conn.execute(CREATE_CATEGORIES_TABLE, ()).await?;
+    conn.execute(CREATE_RECORDS_INDEX, ()).await?;
     
     Ok(Arc::new(RwLock::new(conn)))
 }

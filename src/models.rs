@@ -41,3 +41,16 @@ pub struct CreateRecordPayload {
     pub amount: f64,
     pub category_id: String,
 }
+
+#[derive(Deserialize)]
+pub struct GetRecordsQuery {
+    pub start_time: Option<i64>,
+    pub end_time: Option<i64>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Serialize)]
+pub struct GetRecordsResponse {
+    pub records: Vec<Record>,
+    pub total_count: u32,
+}
