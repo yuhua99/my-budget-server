@@ -55,6 +55,6 @@ pub async fn get_user_db(data_dir: &str, user_id: &str) -> Result<Db> {
     conn.execute(CREATE_RECORDS_TABLE, ()).await?;
     conn.execute(CREATE_CATEGORIES_TABLE, ()).await?;
     conn.execute(CREATE_RECORDS_INDEX, ()).await?;
-    
+
     Ok(Arc::new(RwLock::new(conn)))
 }

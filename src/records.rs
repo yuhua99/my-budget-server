@@ -1,4 +1,8 @@
-use axum::{Json, extract::{Query, State}, http::StatusCode};
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::StatusCode,
+};
 use tower_sessions::Session;
 use uuid::Uuid;
 
@@ -145,9 +149,9 @@ pub async fn get_records(
 
     // Use default values: start_time defaults to 0, end_time defaults to current timestamp
     let start_time = query.start_time.unwrap_or(0);
-    let end_time = query.end_time.unwrap_or_else(|| {
-        time::OffsetDateTime::now_utc().unix_timestamp()
-    });
+    let end_time = query
+        .end_time
+        .unwrap_or_else(|| time::OffsetDateTime::now_utc().unix_timestamp());
 
     // Get total count
     let count_query = "SELECT COUNT(*) FROM records WHERE timestamp BETWEEN ? AND ?";
@@ -199,8 +203,11 @@ pub async fn get_records(
         records.push(extract_record_from_row(row)?);
     }
 
-    Ok((StatusCode::OK, Json(GetRecordsResponse {
-        records,
-        total_count,
-    })))
+    Ok((
+        StatusCode::OK,
+        Json(GetRecordsResponse {
+            records,
+            total_count,
+        }),
+    ))
 }

@@ -30,8 +30,9 @@ async fn main() {
     // TODO: Consider adding periodic session cleanup for long-running deployments
     // to prevent memory growth with accumulated expired sessions
 
-    let secret = env::var("SESSION_SECRET")
-        .expect("SESSION_SECRET environment variable is required and must be at least 64 characters long");
+    let secret = env::var("SESSION_SECRET").expect(
+        "SESSION_SECRET environment variable is required and must be at least 64 characters long",
+    );
     let session_layer = SessionManagerLayer::new(store)
         .with_secure(false)
         .with_name("axum_session")
@@ -43,7 +44,10 @@ async fn main() {
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
         .route("/auth/logout", post(auth::logout))
-        .route("/records", post(records::create_record).get(records::get_records))
+        .route(
+            "/records",
+            post(records::create_record).get(records::get_records),
+        )
         .layer(session_layer)
         .with_state(main_db);
 

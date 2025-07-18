@@ -1,7 +1,7 @@
 use my_budget_server::database::{get_user_db, init_main_db};
 use my_budget_server::models::Record;
 use std::fs;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 use uuid::Uuid;
 
 pub async fn setup_test_environment() -> (String, String, TempDir) {

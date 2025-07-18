@@ -36,16 +36,33 @@ pub async fn register(
 ) -> Result<(StatusCode, Json<PublicUser>), (StatusCode, String)> {
     // Input validation
     if payload.username.trim().is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Username cannot be empty".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Username cannot be empty".to_string(),
+        ));
     }
     if payload.username.len() < 3 || payload.username.len() > 50 {
-        return Err((StatusCode::BAD_REQUEST, "Username must be between 3 and 50 characters".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Username must be between 3 and 50 characters".to_string(),
+        ));
     }
     if payload.password.len() < 8 {
-        return Err((StatusCode::BAD_REQUEST, "Password must be at least 8 characters long".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Password must be at least 8 characters long".to_string(),
+        ));
     }
-    if !payload.username.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
-        return Err((StatusCode::BAD_REQUEST, "Username can only contain alphanumeric characters, underscores, and hyphens".to_string()));
+    if !payload
+        .username
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Username can only contain alphanumeric characters, underscores, and hyphens"
+                .to_string(),
+        ));
     }
 
     let user = create_user(&db, &payload.username, &payload.password)
@@ -99,10 +116,16 @@ pub async fn login(
 ) -> Result<(StatusCode, Json<PublicUser>), (StatusCode, String)> {
     // Input validation
     if payload.username.trim().is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Username cannot be empty".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Username cannot be empty".to_string(),
+        ));
     }
     if payload.password.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "Password cannot be empty".to_string()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Password cannot be empty".to_string(),
+        ));
     }
 
     let user_data = get_user_by_username(&db, &payload.username)
