@@ -7,10 +7,10 @@ use std::env;
 use time::Duration;
 use tower_sessions::{Expiry, MemoryStore, Session, SessionManagerLayer, cookie::Key};
 
-mod auth;
-mod database;
-mod models;
-mod records;
+pub mod auth;
+pub mod database;
+pub mod models;
+pub mod records;
 
 #[tokio::main]
 async fn main() {

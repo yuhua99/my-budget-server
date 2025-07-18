@@ -6,7 +6,7 @@ use crate::auth::get_current_user;
 use crate::database::{Db, get_user_db};
 use crate::models::{CreateRecordPayload, GetRecordsQuery, GetRecordsResponse, Record};
 
-fn extract_record_from_row(row: libsql::Row) -> Result<Record, (StatusCode, String)> {
+pub fn extract_record_from_row(row: libsql::Row) -> Result<Record, (StatusCode, String)> {
     let id: String = row.get(0).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
