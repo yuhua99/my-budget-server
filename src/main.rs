@@ -3,44 +3,52 @@ use axum::{
     response::Html,
     routing::{get, post, put},
 };
-use std::env;
 use time::Duration;
 use tower_sessions::{Expiry, MemoryStore, Session, SessionManagerLayer, cookie::Key};
 
 pub mod auth;
 pub mod categories;
+pub mod config;
+pub mod constants;
 pub mod database;
 pub mod models;
 pub mod records;
 pub mod utils;
 
+use config::Config;
+use constants::*;
+
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
 #[tokio::main]
-async fn main() {
-    // load environment variables
+async fn main() -> Result<()> {
+    // Load environment variables
     dotenv::dotenv().ok();
 
-    let data_path = env::var("DATABASE_PATH").unwrap_or_else(|_| "data".to_string());
-    let main_db = database::init_main_db(&data_path)
+    // Load and validate configuration
+    let config = Config::from_env().map_err(|e| format!("Configuration error: {}", e))?;
+
+    // Initialize main database
+    let main_db = database::init_main_db(&config.data_path)
         .await
-        .expect("Failed to initialize main DB");
+        .map_err(|e| format!("Failed to initialize main database: {}", e))?;
 
-    let host = env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port = env::var("SERVER_PORT").unwrap_or_else(|_| "3000".to_string());
-    let bind_address = format!("{}:{}", host, port);
-
+    // Create session store
     let store = MemoryStore::default();
     // TODO: Consider adding periodic session cleanup for long-running deployments
     // to prevent memory growth with accumulated expired sessions
 
-    let secret = env::var("SESSION_SECRET").expect(
-        "SESSION_SECRET environment variable is required and must be at least 64 characters long",
-    );
-    let session_layer = SessionManagerLayer::new(store)
-        .with_secure(false)
-        .with_name("axum_session")
-        .with_expiry(Expiry::OnInactivity(Duration::days(3)))
-        .with_signed(Key::try_from(secret.as_bytes()).unwrap());
+    // Create session key with proper error handling
+    let session_key = Key::try_from(config.session_secret.as_bytes())
+        .map_err(|e| format!("Invalid session secret: {}", e))?;
 
+    let session_layer = SessionManagerLayer::new(store)
+        .with_secure(false) // TODO: Set to true in production with HTTPS
+        .with_name(SESSION_NAME)
+        .with_expiry(Expiry::OnInactivity(Duration::days(SESSION_EXPIRY_DAYS)))
+        .with_signed(session_key);
+
+    // Build application router
     let app = Router::new()
         .route("/", get(root))
         .route("/auth/register", post(auth::register))
@@ -54,19 +62,42 @@ async fn main() {
             "/records/:id",
             put(records::update_record).delete(records::delete_record),
         )
-        .route("/categories", post(categories::create_category))
+        .route(
+            "/categories",
+            post(categories::create_category).get(categories::get_categories),
+        )
         .layer(session_layer)
         .with_state(main_db);
 
-    let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
+    // Create TCP listener with proper error handling
+    let bind_address = config.bind_address();
+    let listener = tokio::net::TcpListener::bind(&bind_address)
+        .await
+        .map_err(|e| format!("Failed to bind to {}: {}", bind_address, e))?;
+
     println!("Server running on http://{}", bind_address);
 
-    axum::serve(listener, app).await.unwrap();
+    // Start server with proper error handling
+    axum::serve(listener, app)
+        .await
+        .map_err(|e| format!("Server error: {}", e))?;
+
+    Ok(())
 }
 
 async fn root(session: Session) -> Html<String> {
-    let count: usize = session.get("visitor_count").await.unwrap().unwrap_or(0);
-    session.insert("visitor_count", count + 1).await.unwrap();
+    let count: usize = session
+        .get("visitor_count")
+        .await
+        .unwrap_or(Some(0))
+        .unwrap_or(0);
+    let new_count = count + 1;
 
-    Html(format!("<h1>Hello!</h1><p>Visit count: {}</p>", count + 1))
+    // Ignore session update errors for this simple endpoint
+    let _ = session.insert("visitor_count", new_count).await;
+
+    Html(format!(
+        "<h1>My Budget Server</h1><p>API Ready - Visit count: {}</p>",
+        new_count
+    ))
 }

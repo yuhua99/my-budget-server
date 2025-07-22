@@ -2,13 +2,15 @@ use axum::http::StatusCode;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 
+use crate::constants::*;
 use crate::database::get_user_db;
 
 static CACHED_DATABASE_PATH: OnceLock<String> = OnceLock::new();
 
 pub fn get_database_path() -> &'static str {
-    CACHED_DATABASE_PATH
-        .get_or_init(|| std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data".to_string()))
+    CACHED_DATABASE_PATH.get_or_init(|| {
+        std::env::var("DATABASE_PATH").unwrap_or_else(|_| DEFAULT_DATA_PATH.to_string())
+    })
 }
 
 pub async fn get_user_database(
@@ -18,7 +20,7 @@ pub async fn get_user_database(
     get_user_db(&data_path, user_id).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            "Database access error".to_string(),
+            ERR_DATABASE_ACCESS.to_string(),
         )
     })
 }
@@ -26,7 +28,7 @@ pub async fn get_user_database(
 pub fn db_error() -> (StatusCode, String) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        "Database operation failed".to_string(),
+        ERR_DATABASE_OPERATION.to_string(),
     )
 }
 
@@ -74,4 +76,49 @@ pub async fn validate_category_exists(
         ));
     }
     Ok(())
+}
+
+pub fn validate_limit(limit: Option<u32>, default: u32) -> Result<u32, (StatusCode, String)> {
+    match limit {
+        Some(l) => {
+            if l == 0 {
+                Err((
+                    StatusCode::BAD_REQUEST,
+                    "Limit must be greater than 0".to_string(),
+                ))
+            } else if l > MAX_LIMIT {
+                Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("Limit cannot exceed {}", MAX_LIMIT),
+                ))
+            } else {
+                Ok(l)
+            }
+        }
+        None => Ok(default),
+    }
+}
+
+pub fn validate_categories_limit(limit: Option<u32>) -> Result<u32, (StatusCode, String)> {
+    validate_limit(limit, DEFAULT_CATEGORIES_LIMIT)
+}
+
+pub fn validate_records_limit(limit: Option<u32>) -> Result<u32, (StatusCode, String)> {
+    validate_limit(limit, DEFAULT_RECORDS_LIMIT)
+}
+
+pub fn validate_offset(offset: Option<u32>) -> Result<u32, (StatusCode, String)> {
+    match offset {
+        Some(o) => {
+            if o > MAX_OFFSET {
+                Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("Offset cannot exceed {}", MAX_OFFSET),
+                ))
+            } else {
+                Ok(o)
+            }
+        }
+        None => Ok(0), // Default offset
+    }
 }

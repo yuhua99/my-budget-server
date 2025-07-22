@@ -79,8 +79,17 @@ pub struct UpdateCategoryPayload {
     pub name: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct GetCategoriesQuery {
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+    pub search: Option<String>,
+}
+
 #[derive(Serialize)]
 pub struct GetCategoriesResponse {
     pub categories: Vec<Category>,
     pub total_count: u32,
+    pub limit: u32,
+    pub offset: u32,
 }

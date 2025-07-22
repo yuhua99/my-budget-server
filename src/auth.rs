@@ -6,6 +6,7 @@ use axum::{Json, extract::State, http::StatusCode};
 use tower_sessions::Session;
 use uuid::Uuid;
 
+use crate::constants::*;
 use crate::database::Db;
 use crate::models::{LoginPayload, PublicUser, RegisterPayload, User};
 
@@ -41,16 +42,23 @@ pub async fn register(
             "Username cannot be empty".to_string(),
         ));
     }
-    if payload.username.len() < 3 || payload.username.len() > 50 {
+    if payload.username.len() < MIN_USERNAME_LENGTH || payload.username.len() > MAX_USERNAME_LENGTH
+    {
         return Err((
             StatusCode::BAD_REQUEST,
-            "Username must be between 3 and 50 characters".to_string(),
+            format!(
+                "Username must be between {} and {} characters",
+                MIN_USERNAME_LENGTH, MAX_USERNAME_LENGTH
+            ),
         ));
     }
-    if payload.password.len() < 8 {
+    if payload.password.len() < MIN_PASSWORD_LENGTH {
         return Err((
             StatusCode::BAD_REQUEST,
-            "Password must be at least 8 characters long".to_string(),
+            format!(
+                "Password must be at least {} characters long",
+                MIN_PASSWORD_LENGTH
+            ),
         ));
     }
     if !payload

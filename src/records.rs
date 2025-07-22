@@ -7,17 +7,18 @@ use tower_sessions::Session;
 use uuid::Uuid;
 
 use crate::auth::get_current_user;
+use crate::constants::*;
 use crate::database::Db;
 use crate::models::{
     CreateRecordPayload, GetRecordsQuery, GetRecordsResponse, Record, UpdateRecordPayload,
 };
 use crate::utils::{
     db_error, db_error_with_context, get_user_database, validate_category_exists,
-    validate_string_length,
+    validate_records_limit, validate_string_length,
 };
 
 pub fn validate_record_name(name: &str) -> Result<(), (StatusCode, String)> {
-    validate_string_length(name, "Record name", 255)
+    validate_string_length(name, "Record name", MAX_RECORD_NAME_LENGTH)
 }
 
 pub fn validate_record_amount(amount: f64) -> Result<(), (StatusCode, String)> {
@@ -31,7 +32,7 @@ pub fn validate_record_amount(amount: f64) -> Result<(), (StatusCode, String)> {
 }
 
 pub fn validate_category_id(category_id: &str) -> Result<(), (StatusCode, String)> {
-    validate_string_length(category_id, "Category ID", 100)
+    validate_string_length(category_id, "Category ID", MAX_CATEGORY_NAME_LENGTH)
 }
 
 pub fn extract_record_from_row(row: libsql::Row) -> Result<Record, (StatusCode, String)> {
@@ -117,7 +118,7 @@ pub async fn get_records(
 
     let user_db = get_user_database(&user.id).await?;
 
-    let limit = query.limit.unwrap_or(500);
+    let limit = validate_records_limit(query.limit)?;
 
     let conn = user_db.read().await;
 
