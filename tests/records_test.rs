@@ -1307,7 +1307,7 @@ async fn delete_all_records_sequentially() {
     let (data_path, user_id, _temp_dir) = setup_test_environment().await;
 
     // Create multiple records
-    let record_ids = vec![
+    let record_ids = [
         create_test_record(
             &data_path,
             &user_id,

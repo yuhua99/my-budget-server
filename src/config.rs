@@ -56,7 +56,7 @@ impl Config {
             )));
         }
 
-        if session_secret.as_bytes().len() < MIN_SESSION_SECRET_LENGTH {
+        if session_secret.len() < MIN_SESSION_SECRET_LENGTH {
             return Err(ConfigError::InvalidSessionSecret(
                 "must be valid UTF-8 and at least 64 bytes".to_string(),
             ));

@@ -63,6 +63,7 @@ pub async fn create_test_record(
     record_id
 }
 
+#[allow(dead_code)]
 pub async fn get_records_from_db(
     data_path: &str,
     user_id: &str,

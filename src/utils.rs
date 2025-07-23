@@ -17,7 +17,7 @@ pub async fn get_user_database(
     user_id: &str,
 ) -> Result<Arc<RwLock<libsql::Connection>>, (StatusCode, String)> {
     let data_path = get_database_path();
-    get_user_db(&data_path, user_id).await.map_err(|_| {
+    get_user_db(data_path, user_id).await.map_err(|_| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             ERR_DATABASE_ACCESS.to_string(),
