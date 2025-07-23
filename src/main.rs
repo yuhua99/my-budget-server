@@ -66,6 +66,10 @@ async fn main() -> Result<()> {
             "/categories",
             post(categories::create_category).get(categories::get_categories),
         )
+        .route(
+            "/categories/:id",
+            put(categories::update_category).delete(categories::delete_category),
+        )
         .layer(session_layer)
         .with_state(main_db);
 
