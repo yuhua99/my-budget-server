@@ -59,7 +59,7 @@ async fn main() -> Result<()> {
             post(records::create_record).get(records::get_records),
         )
         .route(
-            "/records/:id",
+            "/records/{id}",
             put(records::update_record).delete(records::delete_record),
         )
         .route(
@@ -67,7 +67,7 @@ async fn main() -> Result<()> {
             post(categories::create_category).get(categories::get_categories),
         )
         .route(
-            "/categories/:id",
+            "/categories/{id}",
             put(categories::update_category).delete(categories::delete_category),
         )
         .layer(session_layer)
