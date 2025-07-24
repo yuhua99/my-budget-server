@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post, put},
 };
 use time::Duration;
+use tower_http::cors::CorsLayer;
 use tower_sessions::{Expiry, MemoryStore, Session, SessionManagerLayer, cookie::Key};
 
 pub mod auth;
@@ -48,6 +49,22 @@ async fn main() -> Result<()> {
         .with_expiry(Expiry::OnInactivity(Duration::days(SESSION_EXPIRY_DAYS)))
         .with_signed(session_key);
 
+    // Configure CORS to allow frontend requests
+    let cors = CorsLayer::new()
+        .allow_origin(
+            "http://localhost:5173"
+                .parse::<axum::http::HeaderValue>()
+                .unwrap(),
+        )
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+        ])
+        .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::header::ACCEPT])
+        .allow_credentials(true);
+
     // Build application router
     let app = Router::new()
         .route("/", get(root))
@@ -70,6 +87,7 @@ async fn main() -> Result<()> {
             "/categories/{id}",
             put(categories::update_category).delete(categories::delete_category),
         )
+        .layer(cors)
         .layer(session_layer)
         .with_state(main_db);
 
