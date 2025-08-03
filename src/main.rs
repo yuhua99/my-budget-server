@@ -70,6 +70,7 @@ async fn main() -> Result<()> {
         .route("/", get(root))
         .route("/auth/register", post(auth::register))
         .route("/auth/login", post(auth::login))
+        .route("/auth/me", get(auth::me))
         .route("/auth/logout", post(auth::logout))
         .route(
             "/records",

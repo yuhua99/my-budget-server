@@ -188,6 +188,11 @@ pub async fn get_current_user(session: &Session) -> Result<PublicUser, (StatusCo
     }
 }
 
+pub async fn me(session: Session) -> Result<(StatusCode, Json<PublicUser>), (StatusCode, String)> {
+    let user = get_current_user(&session).await?;
+    Ok((StatusCode::OK, Json(user)))
+}
+
 pub async fn logout(session: Session) -> Result<StatusCode, (StatusCode, String)> {
     session.clear().await;
 
