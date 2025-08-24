@@ -43,8 +43,14 @@ async fn main() -> Result<()> {
     let session_key = Key::try_from(config.session_secret.as_bytes())
         .map_err(|e| format!("Invalid session secret: {}", e))?;
 
+    // Determine if we should use secure cookies based on environment
+    // In development (localhost), use non-secure cookies
+    // In production (HTTPS), use secure cookies
+    let is_production =
+        config.host != "127.0.0.1" && config.host != "localhost" && config.host == "0.0.0.0";
+
     let session_layer = SessionManagerLayer::new(store)
-        .with_secure(false) // TODO: Set to true in production with HTTPS
+        .with_secure(is_production) // Only secure in production
         .with_name(SESSION_NAME)
         .with_expiry(Expiry::OnInactivity(Duration::days(SESSION_EXPIRY_DAYS)))
         .with_signed(session_key);
