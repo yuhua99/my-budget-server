@@ -35,6 +35,32 @@ pub fn validate_category_id(category_id: &str) -> Result<(), (StatusCode, String
     validate_string_length(category_id, "Category ID", MAX_CATEGORY_NAME_LENGTH)
 }
 
+pub fn validate_timestamp(timestamp: i64) -> Result<(), (StatusCode, String)> {
+    let current_time = time::OffsetDateTime::now_utc().unix_timestamp();
+
+    // Reject timestamps from more than 10 years in the past
+    let ten_years_ago = current_time - (10 * 365 * 24 * 60 * 60);
+
+    // Reject timestamps from more than 1 hour in the future (to allow for clock skew)
+    let one_hour_future = current_time + (60 * 60);
+
+    if timestamp < ten_years_ago {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Timestamp cannot be more than 10 years in the past".to_string(),
+        ));
+    }
+
+    if timestamp > one_hour_future {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Timestamp cannot be more than 1 hour in the future".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
 pub fn extract_record_from_row(row: libsql::Row) -> Result<Record, (StatusCode, String)> {
     let id: String = row
         .get(0)
@@ -73,6 +99,7 @@ pub async fn create_record(
     validate_record_name(&payload.name)?;
     validate_record_amount(payload.amount)?;
     validate_category_id(&payload.category_id)?;
+    validate_timestamp(payload.timestamp)?;
 
     // Get user's database
     let user_db = get_user_database(&user.id).await?;
@@ -82,7 +109,6 @@ pub async fn create_record(
 
     // Create record
     let record_id = Uuid::new_v4().to_string();
-    let timestamp = time::OffsetDateTime::now_utc().unix_timestamp();
 
     let conn = user_db.write().await;
     conn.execute(
@@ -92,7 +118,7 @@ pub async fn create_record(
             payload.name.trim(),
             payload.amount,
             payload.category_id.trim(),
-            timestamp,
+            payload.timestamp,
         ),
     )
     .await
@@ -103,7 +129,7 @@ pub async fn create_record(
         name: payload.name.trim().to_string(),
         amount: payload.amount,
         category_id: payload.category_id.trim().to_string(),
-        timestamp,
+        timestamp: payload.timestamp,
     };
 
     Ok((StatusCode::CREATED, Json(record)))

@@ -40,6 +40,7 @@ pub struct CreateRecordPayload {
     pub name: String,
     pub amount: f64,
     pub category_id: String,
+    pub timestamp: i64,
 }
 
 #[derive(Deserialize)]
