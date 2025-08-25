@@ -304,26 +304,28 @@ pub async fn delete_category(
     let user_db = get_user_database(&user.id).await?;
 
     // Check if category exists and belongs to user first
-    let conn = user_db.read().await;
-    let mut existing_rows = conn
-        .query(
-            "SELECT id FROM categories WHERE id = ?",
-            [category_id.as_str()],
-        )
-        .await
-        .map_err(|_| db_error_with_context("failed to query existing category"))?;
-
-    if existing_rows
-        .next()
-        .await
-        .map_err(|_| db_error())?
-        .is_none()
     {
-        return Err((StatusCode::NOT_FOUND, "Category not found".to_string()));
-    }
+        let conn = user_db.read().await;
+        let mut existing_rows = conn
+            .query(
+                "SELECT id FROM categories WHERE id = ?",
+                [category_id.as_str()],
+            )
+            .await
+            .map_err(|_| db_error_with_context("failed to query existing category"))?;
 
-    // Check if category is in use by any records
-    validate_category_not_in_use(&user_db, &category_id).await?;
+        if existing_rows
+            .next()
+            .await
+            .map_err(|_| db_error())?
+            .is_none()
+        {
+            return Err((StatusCode::NOT_FOUND, "Category not found".to_string()));
+        }
+
+        // Check if category is in use by any records
+        validate_category_not_in_use(&user_db, &category_id).await?;
+    } // Read lock is dropped here
 
     // Now delete the category
     let conn = user_db.write().await;
