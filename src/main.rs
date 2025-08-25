@@ -55,9 +55,12 @@ async fn main() -> Result<()> {
         .with_expiry(Expiry::OnInactivity(Duration::days(SESSION_EXPIRY_DAYS)))
         .with_signed(session_key);
 
-    // Configure CORS to allow frontend requests from any origin (development)
+    // Configure CORS to allow frontend requests
+    let frontend_origin =
+        std::env::var("FRONTEND_ORIGIN").unwrap_or_else(|_| "http://localhost:5173".to_string());
+
     let cors = CorsLayer::new()
-        .allow_origin(tower_http::cors::Any)
+        .allow_origin(frontend_origin.parse::<axum::http::HeaderValue>().unwrap())
         .allow_methods([
             axum::http::Method::GET,
             axum::http::Method::POST,
