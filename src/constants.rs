@@ -5,7 +5,7 @@ pub const DEFAULT_DATA_PATH: &str = "data";
 
 // Session configuration
 pub const SESSION_NAME: &str = "axum_session";
-pub const SESSION_EXPIRY_DAYS: i64 = 3;
+pub const SESSION_EXPIRY_DAYS: i64 = 30;
 pub const MIN_SESSION_SECRET_LENGTH: usize = 64;
 
 // Database limits and defaults

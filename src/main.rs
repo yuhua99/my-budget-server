@@ -44,10 +44,10 @@ async fn main() -> Result<()> {
         .map_err(|e| format!("Invalid session secret: {}", e))?;
 
     // Determine if we should use secure cookies based on environment
-    // In development (localhost), use non-secure cookies
-    // In production (HTTPS), use secure cookies
-    let is_production =
-        config.host != "127.0.0.1" && config.host != "localhost" && config.host == "0.0.0.0";
+    // Only use secure cookies when explicitly in production with HTTPS
+    let is_production = std::env::var("PRODUCTION")
+        .map(|val| val.to_lowercase() == "true")
+        .unwrap_or(false);
 
     let session_layer = SessionManagerLayer::new(store)
         .with_secure(is_production) // Only secure in production
