@@ -55,20 +55,20 @@ async fn main() -> Result<()> {
         .with_expiry(Expiry::OnInactivity(Duration::days(SESSION_EXPIRY_DAYS)))
         .with_signed(session_key);
 
-    // Configure CORS to allow frontend requests
+    // Configure CORS to allow frontend requests from any origin (development)
     let cors = CorsLayer::new()
-        .allow_origin(
-            "http://localhost:5173"
-                .parse::<axum::http::HeaderValue>()
-                .unwrap(),
-        )
+        .allow_origin(tower_http::cors::Any)
         .allow_methods([
             axum::http::Method::GET,
             axum::http::Method::POST,
             axum::http::Method::PUT,
             axum::http::Method::DELETE,
         ])
-        .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::header::ACCEPT])
+        .allow_headers([
+            axum::http::header::CONTENT_TYPE,
+            axum::http::header::ACCEPT,
+            axum::http::header::COOKIE,
+        ])
         .allow_credentials(true);
 
     // Build application router
