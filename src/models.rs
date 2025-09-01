@@ -68,11 +68,13 @@ pub struct GetRecordsResponse {
 pub struct Category {
     pub id: String,
     pub name: String,
+    pub is_income: bool,
 }
 
 #[derive(Deserialize)]
 pub struct CreateCategoryPayload {
     pub name: String,
+    pub is_income: bool,
 }
 
 #[derive(Deserialize)]

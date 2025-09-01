@@ -23,8 +23,9 @@ CREATE TABLE IF NOT EXISTS records (
 
 const CREATE_CATEGORIES_TABLE: &str = r#"
 CREATE TABLE IF NOT EXISTS categories (
-    id   TEXT    PRIMARY KEY,
-    name TEXT    UNIQUE NOT NULL
+    id        TEXT    PRIMARY KEY,
+    name      TEXT    UNIQUE NOT NULL,
+    is_income BOOLEAN NOT NULL DEFAULT FALSE
 );
 "#;
 

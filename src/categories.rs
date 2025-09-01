@@ -29,8 +29,15 @@ pub fn extract_category_from_row(row: libsql::Row) -> Result<Category, (StatusCo
     let name: String = row
         .get(1)
         .map_err(|_| db_error_with_context("invalid category data"))?;
+    let is_income: bool = row
+        .get(2)
+        .map_err(|_| db_error_with_context("invalid category data"))?;
 
-    Ok(Category { id, name })
+    Ok(Category {
+        id,
+        name,
+        is_income,
+    })
 }
 
 pub async fn validate_category_not_in_use(
@@ -103,8 +110,12 @@ pub async fn create_category(
     // Create category
     let category_id = Uuid::new_v4().to_string();
     conn.execute(
-        "INSERT INTO categories (id, name) VALUES (?, ?)",
-        (category_id.as_str(), category_name.as_str()),
+        "INSERT INTO categories (id, name, is_income) VALUES (?, ?, ?)",
+        (
+            category_id.as_str(),
+            category_name.as_str(),
+            payload.is_income,
+        ),
     )
     .await
     .map_err(|_| db_error_with_context("category creation failed"))?;
@@ -112,6 +123,7 @@ pub async fn create_category(
     let category = Category {
         id: category_id,
         name: category_name,
+        is_income: payload.is_income,
     };
 
     Ok((StatusCode::CREATED, Json(category)))
@@ -176,14 +188,14 @@ pub async fn get_categories(
     let mut rows = if let Some(search) = &search_term {
         let search_pattern = format!("%{}%", search);
         conn.query(
-            "SELECT id, name FROM categories WHERE name LIKE ? COLLATE NOCASE ORDER BY name ASC LIMIT ? OFFSET ?",
+            "SELECT id, name, is_income FROM categories WHERE name LIKE ? COLLATE NOCASE ORDER BY name ASC LIMIT ? OFFSET ?",
             (search_pattern.as_str(), limit, offset)
         )
         .await
         .map_err(|_| db_error_with_context("failed to query categories"))?
     } else {
         conn.query(
-            "SELECT id, name FROM categories ORDER BY name ASC LIMIT ? OFFSET ?",
+            "SELECT id, name, is_income FROM categories ORDER BY name ASC LIMIT ? OFFSET ?",
             (limit, offset),
         )
         .await
@@ -233,18 +245,17 @@ pub async fn update_category(
     // First, check if the category exists and belongs to the user
     let mut existing_rows = conn
         .query(
-            "SELECT id, name FROM categories WHERE id = ?",
+            "SELECT id, name, is_income FROM categories WHERE id = ?",
             [category_id.as_str()],
         )
         .await
         .map_err(|_| db_error_with_context("failed to query existing category"))?;
 
-    let _existing_category =
-        if let Some(row) = existing_rows.next().await.map_err(|_| db_error())? {
-            extract_category_from_row(row)?
-        } else {
-            return Err((StatusCode::NOT_FOUND, "Category not found".to_string()));
-        };
+    let existing_category = if let Some(row) = existing_rows.next().await.map_err(|_| db_error())? {
+        extract_category_from_row(row)?
+    } else {
+        return Err((StatusCode::NOT_FOUND, "Category not found".to_string()));
+    };
 
     // Check if the new name conflicts with existing categories (excluding current one)
     let mut conflict_rows = conn
@@ -287,6 +298,7 @@ pub async fn update_category(
     let updated_category = Category {
         id: category_id,
         name: category_name,
+        is_income: existing_category.is_income,
     };
 
     Ok((StatusCode::OK, Json(updated_category)))
