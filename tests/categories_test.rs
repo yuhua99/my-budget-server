@@ -18,8 +18,8 @@ async fn create_test_category(data_path: &str, user_id: &str, name: &str) -> Str
 
     let conn = user_db.write().await;
     conn.execute(
-        "INSERT INTO categories (id, name) VALUES (?, ?)",
-        (category_id.as_str(), name),
+        "INSERT INTO categories (id, name, is_income) VALUES (?, ?, ?)",
+        (category_id.as_str(), name, false),
     )
     .await
     .unwrap_or_else(|e| {
@@ -44,7 +44,7 @@ async fn get_category_from_db(
 
     let mut rows = conn
         .query(
-            "SELECT id, name FROM categories WHERE id = ?",
+            "SELECT id, name, is_income FROM categories WHERE id = ?",
             [category_id],
         )
         .await
@@ -53,7 +53,12 @@ async fn get_category_from_db(
     if let Some(row) = rows.next().await.expect("Failed to read category row") {
         let id: String = row.get(0).expect("Failed to get category id");
         let name: String = row.get(1).expect("Failed to get category name");
-        Some(Category { id, name })
+        let is_income: bool = row.get(2).expect("Failed to get category is_income");
+        Some(Category {
+            id,
+            name,
+            is_income,
+        })
     } else {
         None
     }
@@ -66,7 +71,10 @@ async fn get_all_categories_from_db(data_path: &str, user_id: &str) -> Vec<Categ
     let conn = user_db.read().await;
 
     let mut rows = conn
-        .query("SELECT id, name FROM categories ORDER BY name ASC", ())
+        .query(
+            "SELECT id, name, is_income FROM categories ORDER BY name ASC",
+            (),
+        )
         .await
         .expect("Failed to execute categories query");
 
@@ -74,7 +82,12 @@ async fn get_all_categories_from_db(data_path: &str, user_id: &str) -> Vec<Categ
     while let Some(row) = rows.next().await.expect("Failed to read category row") {
         let id: String = row.get(0).expect("Failed to get category id");
         let name: String = row.get(1).expect("Failed to get category name");
-        categories.push(Category { id, name });
+        let is_income: bool = row.get(2).expect("Failed to get category is_income");
+        categories.push(Category {
+            id,
+            name,
+            is_income,
+        });
     }
 
     categories
@@ -148,7 +161,7 @@ async fn test_extract_category_from_row() {
 
     let mut rows = conn
         .query(
-            "SELECT id, name FROM categories WHERE id = ?",
+            "SELECT id, name, is_income FROM categories WHERE id = ?",
             [category_id.as_str()],
         )
         .await
